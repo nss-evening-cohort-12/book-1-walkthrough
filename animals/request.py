@@ -1,4 +1,4 @@
-from models.animal import Animal
+from models import Animal
 
 ANIMALS = [
     Animal(1, 'jack', 'dog', 'good boy', 1, 1),
