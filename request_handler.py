@@ -1,5 +1,5 @@
 import json
-from customers import get_all_customers, get_single_customer, create_customer, delete_customer, update_customer, get_customers_by_email
+from customers import get_all_customers, get_single_customer, delete_customer, update_customer, get_customers_by_email
 from employees import get_all_employees, get_single_employee, create_employee, delete_employee, update_employee
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from locations import get_single_location, get_all_locations, create_location, delete_location, update_location
@@ -70,6 +70,17 @@ class HandleRequests(BaseHTTPRequestHandler):
                     response = f"{get_single_customer(id)}"
                 else:
                     response = f"{get_all_customers()}"
+            elif resource == "employees":
+                if id is not None:
+                    response = f"{get_single_employee(id)}"
+                else:
+                    response = f"{get_all_employees()}"
+            elif resource == "locations":
+                if id is not None:
+                    response = f"{get_single_location(id)}"
+                else:
+                    response = f"{get_all_locations()}"
+            
 
         # Response from parse_url() is a tuple with 3
         # items in it, which means the request was for

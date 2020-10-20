@@ -1,21 +1,35 @@
-LOCATIONS = [
-    {
-        "id": 1,
-        "city": "Nashville",
-    },
-    {
-        "id": 2,
-        "city": "Charlotte",
-    },
-    {
-        "id": 3,
-        "city": "Chattanooga",
-    }
-]
+import json
+import sqlite3
 
+from models import Location
 
 def get_all_locations():
-    return LOCATIONS
+    with sqlite3.connect("./kennels.db") as conn:
+        conn.row_factory = sqlite3.Row
+        db_cursor = conn.cursor()
+
+        # Write the SQL query to get the information you want
+        db_cursor.execute("""
+        select
+            c.id,
+            c.name,
+            c.address
+        from location c
+        """)
+
+        # Initialize an empty list to hold all location representations
+        locations = []
+        dataset = db_cursor.fetchall()
+
+        # Iterate all rows of data returned from database
+        for row in dataset:
+
+            # Create an location instance from the current row
+            location = Location(row['id'], row['name'], row['address'])
+
+            locations.append(location.__dict__)
+
+    return json.dumps(locations)
 
 def get_single_location(id):
     requested_location = None
