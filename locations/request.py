@@ -8,7 +8,6 @@ def get_all_locations():
         conn.row_factory = sqlite3.Row
         db_cursor = conn.cursor()
 
-        # Write the SQL query to get the information you want
         db_cursor.execute("""
         select
             c.id,
@@ -17,55 +16,46 @@ def get_all_locations():
         from location c
         """)
 
-        # Initialize an empty list to hold all location representations
         locations = []
         dataset = db_cursor.fetchall()
 
-        # Iterate all rows of data returned from database
         for row in dataset:
-
-            # Create an location instance from the current row
             location = Location(row['id'], row['name'], row['address'])
-
             locations.append(location.__dict__)
+
 
     return json.dumps(locations)
 
-def get_single_location(id):
-    requested_location = None
+def get_location(id):
+    with sqlite3.connect("./kennels.db") as conn:
+        conn.row_factory = sqlite3.Row
+        db_cursor = conn.cursor()
 
-    for location in LOCATIONS:
-        if location["id"] == id:
-            requested_location = location
+        db_cursor.execute("""
+        select
+            l.id,
+            l.name,
+            l.address
+        from location l
+        """)
 
-    return requested_location
+        data = db_cursor.fetchall()
+        location = Location(data['id'], data['name'], data['address'])
+        return location
+        
+
 
 def create_location(location):
-    max_id = LOCATIONS[-1]["id"]
+    with sqlite3.connect("./kennels.db") as conn:
+        db_cursor = conn.cursor()
 
-    new_id = max_id + 1
+        db_cursor.execute("""
+        INSERT INTO Customer
+            ( name, address )
+        VALUES
+            ( ?, ?, ?, ?, ?);
+        """, (location['name'], location['address'],))
 
-    location["id"] = new_id
+        location['id'] = db_cursor.lastrowid
 
-    LOCATIONS.append(location)
-
-    return location
-
-def delete_location(id):
-    location_index = -1
-
-    for index, location in enumerate(LOCATIONS):
-        if location["id"] == id:
-            location_index = index
-
-    if location_index >= 0:
-        LOCATIONS.pop(location_index)
-
-def update_location(id, new_location):
-    # Iterate the locationS list, but use enumerate() so that
-    # you can access the index value of each item.
-    for index, location in enumerate(LOCATIONS):
-        if location["id"] == id:
-            # Found the location. Update the value.
-            LOCATIONS[index] = new_location
-            break
+        return location

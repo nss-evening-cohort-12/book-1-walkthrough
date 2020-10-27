@@ -1,16 +1,38 @@
 import json
-from customers import get_all_customers, get_single_customer, delete_customer, update_customer, get_customers_by_email
-from employees import get_all_employees, get_single_employee, create_employee, delete_employee, update_employee
+from models import parsed_url
+from customers import get_all_customers, get_customers_by_email, create_customer
+from employees import get_all_employees, create_employee
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from locations import get_single_location, get_all_locations, create_location, delete_location, update_location
+from locations import get_all_locations, create_location
 from animals import get_all_animals, get_single_animal, create_animal, delete_animal, update_animal, update_animal
+from models import ParsedUrl
 
 
 # Here's a class. It inherits from another class.
 class HandleRequests(BaseHTTPRequestHandler):
+    def parse_query(self, query_string):
+        pairs = query_string.split("&")  # [ '_expand=location', '_expand=customer' ]
+        query = {}
+
+        for pair in pairs:
+            (key, value) = tuple(pair.split('='))
+            if key in query:
+                query[key].append(value)
+            else:
+                query[key] = [value]
+        return query
+
     def parse_url(self, path):
         path_params = path.split("/")
         resource = path_params[1]
+        id = ""
+        query = {}
+        id_int = None
+        try:
+            id = path_params[2]
+        except IndexError:
+            pass  # No route parameter exists: /animals
+        
 
         # Check if there is a query string parameter
         if "?" in resource:
@@ -18,24 +40,22 @@ class HandleRequests(BaseHTTPRequestHandler):
 
             param = resource.split("?")[1]  # email=jenna@solis.com
             resource = resource.split("?")[0]  # 'customers'
-            pair = param.split("=")  # [ 'email', 'jenna@solis.com' ]
-            key = pair[0]  # 'email'
-            value = pair[1]  # 'jenna@solis.com'
+            query = self.parse_query(param)
 
-            return ( resource, key, value )
+        if "?" in id:
+            # GIVEN: /animals/1?_expand=location&_expand=customer
 
-        # No query string parameter
+            param = id.split("?")[1]  # _expand=location&_expand=customer
+            id_int = int(id.split("?")[0])  # 1
+            query = self.parse_query(param)
+
         else:
-            id = None
-
             try:
-                id = int(path_params[2])
-            except IndexError:
-                pass  # No route parameter exists: /animals
+                id_int = int(id)
             except ValueError:
                 pass  # Request had trailing slash: /animals/
 
-            return (resource, id)
+        return ParsedUrl(resource, id_int, query)
 
     # Here's a class function
     def _set_headers(self, status):
@@ -47,59 +67,37 @@ class HandleRequests(BaseHTTPRequestHandler):
     # Here's a method on the class that overrides the parent's method.
     # It handles any GET request.
     def do_GET(self):
-        self._set_headers(200)
-
         response = {}
 
         # Parse URL and store entire tuple in a variable
         parsed = self.parse_url(self.path)
 
-        # Response from parse_url() is a tuple with 2
-        # items in it, which means the request was for
-        # `/animals` or `/animals/2`
-        if len(parsed) == 2:
-            ( resource, id ) = parsed
-
-            if resource == "animals":
-                if id is not None:
-                    response = f"{get_single_animal(id)}"
-                else:
-                    response = f"{get_all_animals()}"
-            elif resource == "customers":
-                if id is not None:
-                    response = f"{get_single_customer(id)}"
-                else:
-                    response = f"{get_all_customers()}"
-            elif resource == "employees":
-                if id is not None:
-                    response = f"{get_single_employee(id)}"
-                else:
-                    response = f"{get_all_employees()}"
-            elif resource == "locations":
-                if id is not None:
-                    response = f"{get_single_location(id)}"
-                else:
-                    response = f"{get_all_locations()}"
+        if parsed.resource == "animals":
+            if parsed.id is not None:
+                response = f"{get_single_animal(parsed.id, parsed.query)}"
+            else:
+                response = f"{get_all_animals()}"
+        elif parsed.resource == "customers":
+            if len(parsed.query):
+                response = f"{get_customers_by_email(parsed.query)}"
+            else:
+                response = f"{get_all_customers()}"
+        elif parsed.resource == "employees": 
+            response = f"{get_all_employees()}"
+        elif parsed.resource == "locations":
+            response = f"{get_all_locations()}"
             
-
-        # Response from parse_url() is a tuple with 3
-        # items in it, which means the request was for
-        # `/resource?parameter=value`
-        elif len(parsed) == 3:
-            ( resource, key, value ) = parsed
-
-            # Is the resource `customers` and was there a
-            # query parameter that specified the customer
-            # email as a filtering value?
-            if key == "email" and resource == "customers":
-                response = get_customers_by_email(value)
+        if response or response is []:
+            self._set_headers(200)
+        else:
+            self._set_headers(404)
 
         self.wfile.write(response.encode())
 
     # Here's a method on the class that overrides the parent's method.
     # It handles any POST request.
     def do_POST(self):
-        self._set_headers(201)
+        
         content_len = int(self.headers.get('content-length', 0))
         post_body = self.rfile.read(content_len)
 
@@ -107,7 +105,7 @@ class HandleRequests(BaseHTTPRequestHandler):
         post_body = json.loads(post_body)
 
         # Parse the URL
-        (resource, _) = self.parse_url(self.path)
+        parsed_url = self.parse_url(self.path)
 
         # Initialize new animal
         new_object = None
@@ -115,14 +113,19 @@ class HandleRequests(BaseHTTPRequestHandler):
         # Add a new animal to the list. Don't worry about
         # the orange squiggle, you'll define the create_animal
         # function next.
-        if resource == "animals":
+        if parsed_url.resource == "animals":
             new_object = create_animal(post_body)
-        elif resource == "employees":
+        elif parsed_url.resource == "employees":
             new_object = create_employee(post_body)
-        elif resource == "customers":
+        elif parsed_url.resource == "customers":
             new_object = create_customer(post_body)
-        elif resource == "locations":
+        elif parsed_url.resource == "locations":
             new_object = create_location(post_body)
+
+        if new_object:
+            self._set_headers(201)
+        else:
+            self._set_headers(400)
 
         # Encode the new animal and send in response
         self.wfile.write(f"{new_object}".encode())
@@ -131,43 +134,40 @@ class HandleRequests(BaseHTTPRequestHandler):
     # Here's a method on the class that overrides the parent's method.
     # It handles any PUT request.
     def do_PUT(self):
-        self._set_headers(204)
         content_len = int(self.headers.get('content-length', 0))
         post_body = self.rfile.read(content_len)
         post_body = json.loads(post_body)
 
         # Parse the URL
-        (resource, id) = self.parse_url(self.path)
+        parsed_url = self.parse_url(self.path)
+    
+        success = False
 
-        # Delete a single animal from the list
-        if resource == "animals":
-            update_animal(id, post_body)
-        elif resource =="employees":
-            update_employee(id, post_body)
-        elif resource =="customers":
-            update_customer(id, post_body)
-        elif resource =="locations":
-            update_location(id, post_body)
+        if parsed_url.resource == "animals":
+            success = update_animal(parsed_url.id, post_body)
+       
+        if success:
+            self._set_headers(204)
+        else:
+            self._set_headers(404)
 
-        # Encode the new animal and send in response
         self.wfile.write("".encode())
 
     def do_DELETE(self):
-        # Set a 204 response code
-        self._set_headers(204)
-
+        
         # Parse the URL
-        (resource, id) = self.parse_url(self.path)
+        parsed_url = self.parse_url(self.path)
+        success = False
 
         # Delete a single animal from the list
-        if resource == "animals":
-            delete_animal(id)
-        elif resource =="employees":
-            delete_employee(id)
-        elif resource =="customers":
-            delete_customer(id)
-        elif resource =="locations":
-            delete_location(id)
+        if parsed_url.resource == "animals":
+            success = delete_animal(parsed_url.id)
+        
+        if success:
+            # Set a 204 response code
+            self._set_headers(204)
+        else:
+            self._set_headers(404)
 
         # Encode the new animal and send in response
         self.wfile.write("".encode())
@@ -176,7 +176,7 @@ class HandleRequests(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE')
-        self.send_header('Access-Control-Allow-Headers', 'X-Requested-With')
+        self.send_header('Access-Control-Allow-Headers', 'X-Requested-With, content-type')
         self.end_headers()
 
 
