@@ -8,3 +8,16 @@ class Animal():
         self.customer_id = customer_id
         self.location = None
         self.customer = None
+
+    def as_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "breed": self.species,
+            "treatment": self.status,
+            "locationId": self.location_id,
+            "customerId": self.customer_id,
+            "location": self.location,
+            "customer": self.customer
+        }
+

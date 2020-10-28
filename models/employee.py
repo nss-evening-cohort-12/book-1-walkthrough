@@ -4,3 +4,11 @@ class Employee():
         self.name = name
         self.address = address
         self.location_id = location_id
+
+    def as_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "address": self.address,
+            "locationId": self.location_id
+        }
